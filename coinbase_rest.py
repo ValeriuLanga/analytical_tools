@@ -55,7 +55,8 @@ if __name__ == '__main__':
 
     # app.run(debug=True)
 
-    all_products = market_data.get_products(True)
+    # all_products = market_data.get_products(save_to_json=True)
+    all_products = market_data.get_archived_product_data(date='2024-07-14')
 
     # product id
     for product in all_products:

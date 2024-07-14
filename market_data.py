@@ -30,6 +30,8 @@ def get_candles(product_id: str) -> dict:
 
 def get_products(save_to_json=False) -> list[dict]:
     '''
+    load_archived_data=True avoids an API call 
+
     A single entry will look like this:
     {
         'product_id': 'SOL-USDC', 
@@ -70,10 +72,12 @@ def get_products(save_to_json=False) -> list[dict]:
         'approximate_quote_24h_volume': '94465402.64'}
     '''
     cdp_api_key = utils.load_api_key()
-
+    file_name = 'products_{}.json'.format(datetime.now().date())
+    dump_file = Path('data\\' + file_name)
+    
     client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
     products = client.get_products()
-    print("[INFO] Sourced {} products", products['num_products'])
+    print("[INFO] Sourced {} products".format(products['num_products']))
 
     if (save_to_json):
         file_name = 'products_{}.json'.format(datetime.now().date())
@@ -82,6 +86,23 @@ def get_products(save_to_json=False) -> list[dict]:
         if (not dump_file.is_file()):
             with open(dump_file, 'w') as fp:
                 json.dump(products['products'], fp)
-                print("[INFO] Wrote {} products to {}", products['num_products'], dump_file)
+                print("[INFO] Wrote {} products to {}".format(products['num_products'], dump_file))
 
     return products['products']
+
+def get_archived_product_data(date: str) -> dict:
+    '''
+    date must be in YYYY-MM-DD format
+    '''
+    
+    file_name = 'products_{}.json'.format(date)
+    
+    dump_file = Path('data\\' + file_name)
+    if (not dump_file.is_file()):
+        print("[INFO] invalid archive file: {}".format(file_name))
+
+    with open(dump_file, 'r') as fp:    
+        data = json.load(fp)
+        print("[INFO] Loaded {} products from {}".format(len(data), dump_file))
+
+    return data
