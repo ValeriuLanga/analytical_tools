@@ -20,3 +20,6 @@ def convert_tick_data_to_dataframe(ticks: dict) -> pd.DataFrame:
                 'volume': 'float'})
 
     return df
+
+def dump_json_array_to_disk(file_prefix: str) -> None:
+    pass

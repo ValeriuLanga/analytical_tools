@@ -14,11 +14,11 @@ import utils
         Output('graph-content', 'figure'),
         Input('dropdown-selection', 'value')    # TODO: fix this, won't work w 2 args
     )
-def update_graph(value: str, unified_df):
-        # selection = btc_df[value]
-        # print(selection)
-        cols = [value + '_btc', value + '_sol']
-        return px.line(unified_df, x='start', y=cols)
+def update_graph(value: str):
+    # selection = btc_df[value]
+    # print(selection)
+    cols = [value + '_btc', value + '_sol']
+    return px.line(unified_df, x='start', y=cols)
 
 
 if __name__ == '__main__':

@@ -13,7 +13,7 @@ def get_candles(product_id: str) -> dict:
 
     client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
-    start_date = datetime.strptime('2024-07-10', "%Y-%m-%d")
+    start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
     print(start_date.timestamp())
     end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
     print(end_date.timestamp())
@@ -22,7 +22,7 @@ def get_candles(product_id: str) -> dict:
             product_id=product_id, 
             start=int(start_date.timestamp()), 
             end=int(end_date.timestamp()), 
-            granularity='ONE_HOUR'
+            granularity='SIX_HOUR'
             )
     
     return ticks
@@ -94,7 +94,7 @@ def get_archived_product_data(date: str) -> dict:
     '''
     date must be in YYYY-MM-DD format
     '''
-    
+
     file_name = 'products_{}.json'.format(date)
     
     dump_file = Path('data\\' + file_name)
