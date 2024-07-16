@@ -131,17 +131,20 @@ def get_archived_product_data(date: str) -> dict:
     return data
 
 
-def get_ticks_as_merged_df(symbols: set[str]) -> pd.DataFrame:
-    '''
+def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.DataFrame:
+    """
     TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
-    '''
+    
+    columns_to_drop: list[str]
+        columns to be dropped from the individual DataFrames
+    """
     
     merged_df = pd.DataFrame({'start' : []})
 
     for sym in symbols:
 
         ticks = get_candles('{}-USD'.format(sym))
-        df = utils.convert_tick_data_to_dataframe(ticks)
+        df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
         df = df.add_suffix('_' + sym)
         df = df.rename({'start_' + sym : 'start'}, axis=1) # cleaner than a manual rename of all cols
 

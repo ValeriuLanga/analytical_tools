@@ -8,7 +8,7 @@ def load_api_key() -> dict:
     
     return cdp_api_key
 
-def convert_tick_data_to_dataframe(ticks: dict) -> pd.DataFrame:
+def convert_tick_data_to_dataframe(ticks: dict, columns_to_drop: list[str]) -> pd.DataFrame:
     df = pd.DataFrame(ticks['candles'])
     
     # TODO: more params to deal w time
@@ -18,6 +18,10 @@ def convert_tick_data_to_dataframe(ticks: dict) -> pd.DataFrame:
                 'open': 'float',
                 'close': 'float',
                 'volume': 'float'})
+    
+    if (len(columns_to_drop) > 0):
+        print("[INFO] Dropping {}".format(columns_to_drop))
+        df = df.drop(labels=columns_to_drop, axis=1)
 
     return df
 
