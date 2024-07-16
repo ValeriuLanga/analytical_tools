@@ -3,25 +3,8 @@ import numpy as np
 
 import plotly.express as px
 
-from dash import Dash, html, dcc, callback, Output, Input
+import data_sourcing.market_data as market_data
 
-import market_data
-import utils
-
-@callback(
-        Output('graph-content', 'figure'),
-        Input('dropdown-selection', 'value')
-    )
-def update_graph(value: str):
-    # TODO: add a switch on what types of data we want to see
-    cols = ['ln_returns_BTC', 'ln_returns_SOL', 'ln_return_corr']
-    # cols = [value + '_btc', value + '_sol']
-
-    print("[INFO] updating graph with data from {}".format(cols))
-    fig = px.line(unified_df, x='start', y=cols)
-    fig.update_xaxes(rangeslider_visible=True)
-
-    return fig
 
 def add_ln_returns_to_df(df: pd.DataFrame, symbol: str):
     """
@@ -46,30 +29,24 @@ unified_df = unified_df.drop(columns=['start'])
 
 # overall ln return correlation
 correlation_matrix = unified_df.corr()
-# print(correlation_matrix)
 
+# let's print some stats
+for sym in symbols:
+    col_name = 'ln_returns_' + sym
+    sym_corr = correlation_matrix[col_name] # note that this is a series, not a df
+
+    highest_corr_name = sym_corr[sym_corr < 1].idxmax()
+    print("[STAT] Highest correlation for {} - {} = {}".format(
+        sym, 
+        sym_corr[sym_corr < 1].idxmax(), 
+        sym_corr[highest_corr_name])) # ofc corr (sym, sym) = 1
+    
+    lowest_corr_name = sym_corr.idxmin() 
+    print("[STAT] Lowest correlation for {} - {} = {}".format(
+        sym, 
+        lowest_corr_name,
+        sym_corr[lowest_corr_name]))
+
+# finally let's look at the matrix as a heat map
 fig = px.imshow(correlation_matrix, text_auto=True)
-
 fig.show()
-
-
-# # high level correlation stats
-# print('[INFO] Overall correlation', )
-# print('[INFO] BTC <> SOL leading / lagging correlation', 
-#       unified_df['ln_returns_BTC'].corr(unified_df['ln_returns_SOL'].shift(2)))
-
-# # let's have a look at a rolling correlation 
-# unified_df['ln_return_corr'] = unified_df['ln_returns_BTC'].rolling(3).corr(unified_df['ln_returns_SOL'].shift(2))
-# print('[INFO] Rolling BTC <> SOL correlation', unified_df['ln_return_corr'])
-
-# # run the app
-# app = Dash(__name__)
-# app.layout = html.Div([
-#     html.H1(children='SOL/BTC - USD levels', style={'textAlign':'center'}),
-#     dcc.Dropdown(options=['low', 'high', 'open', 'close', 'volume', 'ln_returns'],
-#                   value='close', 
-#                   id='dropdown-selection'),
-#     dcc.Graph(id='graph-content')
-# ])
-
-# app.run(debug=True)
