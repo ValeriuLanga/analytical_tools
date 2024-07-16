@@ -2,31 +2,54 @@
 import json
 import utils
 
+import pandas as pd
+
 from pathlib import Path
 
 from coinbase.rest import RESTClient
 from datetime import datetime
 
 
-def get_candles(product_id: str) -> dict:
+def get_candles(product_id: str, retry_count=4) -> dict:
+    """
+    Args:
+        product_id: int
+            A Coinbase specific product identifier; see get_products().
+        retry_count: int
+            Number of retries before we fail the request. Needed because of 
+            arbitrary API failures. 
+    """
+
     cdp_api_key = utils.load_api_key()
-
-    client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
-
-    start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
-    print(start_date.timestamp())
-    end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
-    print(end_date.timestamp())
-
-    ticks = client.get_candles(
-            product_id=product_id, 
-            start=int(start_date.timestamp()), 
-            end=int(end_date.timestamp()), 
-            granularity='SIX_HOUR'
-            )
     
-    return ticks
+    while (True):
+        try:
+            if (retry_count <= 0):
+                # return {}   # TODO: decide on approach for market_data methods - throw, empty, err code
+                raise Exception("Failed to load market data candles!")
+            
+            client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
+            start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
+            print(start_date.timestamp())
+            end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
+            print(end_date.timestamp())
+
+            ticks = client.get_candles(
+                    product_id=product_id, 
+                    start=int(start_date.timestamp()), 
+                    end=int(end_date.timestamp()), 
+                    granularity='SIX_HOUR'
+                    )
+            
+            return ticks
+        except: 
+            print("[WARN] Failed to get market data!")
+            retry_count -= 1
+
+
+def get_archived_candles(product_id: str) -> dict:
+    pass
 
 def get_products(save_to_json=False) -> list[dict]:
     '''
@@ -106,3 +129,25 @@ def get_archived_product_data(date: str) -> dict:
         print("[INFO] Loaded {} products from {}".format(len(data), dump_file))
 
     return data
+
+
+def get_ticks_as_merged_df(symbols: set[str]) -> pd.DataFrame:
+    '''
+    TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
+    '''
+    
+    merged_df = pd.DataFrame({'start' : []})
+
+    for sym in symbols:
+
+        ticks = get_candles('{}-USD'.format(sym))
+        df = utils.convert_tick_data_to_dataframe(ticks)
+        df = df.add_suffix('_' + sym)
+        df = df.rename({'start_' + sym : 'start'}, axis=1) # cleaner than a manual rename of all cols
+
+        if (merged_df.empty):
+            merged_df = merged_df.merge(df, how='right', on='start')
+        else:
+            merged_df = merged_df.merge(df, on='start') # no suffixes as we should never clash
+
+    return merged_df

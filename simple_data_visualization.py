@@ -18,35 +18,21 @@ def update_graph(value: str):
         cols.append(value + '_' + sym)
 
     print('[INFO] showing data for {}'.format(cols))
-    return px.line(merged_df, x='start', y=cols)
+
+    fig = px.line(merged_df, x='start', y=cols)
+    fig.update_xaxes(rangeslider_visible=True)
+
+    return fig
 
 
-def merge_symbols_data(symbols: set[str]) -> pd.DataFrame:
-    merged_df = pd.DataFrame({'start' : []})
-
-    for sym in symbols:
-
-        ticks = market_data.get_candles('{}-USD'.format(sym))
-        df = utils.convert_tick_data_to_dataframe(ticks)
-        df = df.add_suffix('_' + sym)
-        df = df.rename({'start_' + sym : 'start'}, axis=1) # cleaner than a manual rename of all cols
-
-        if (merged_df.empty):
-            merged_df = merged_df.merge(df, how='right', on='start')
-        else:
-            merged_df = merged_df.merge(df, on='start') # no suffixes as we should never clash
-
-    return merged_df
-
-
-symbols = set(['BTC', 'SOL', 'AVAX'])
-merged_df = merge_symbols_data(symbols)
+symbols = set(['LTC', 'SOL', 'AVAX'])
+merged_df = market_data.get_ticks_as_merged_df(symbols)
 # print(merged_df.head())
 
 # run the app
 app = Dash(__name__)
 app.layout = html.Div([
-    html.H1(children='SOL/BTC - USD levels', style={'textAlign':'center'}),
+    html.H1(children='Price and volume information', style={'textAlign':'center'}),
     dcc.Dropdown(options=['low', 'high', 'open', 'close', 'volume'],
                   value='close', 
                   id='dropdown-selection'),
