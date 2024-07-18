@@ -5,8 +5,8 @@ import plotly.express as px
 
 from dash import Dash, html, dcc, callback, Output, Input
 
-import market_data
-import utils
+import data_sourcing.market_data as market_data
+import data_sourcing.utils as utils
 
 @callback(
         Output('graph-content', 'figure'),

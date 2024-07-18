@@ -1,6 +1,3 @@
-conf/cdp_api_key.json
+conf/
 data/products_2024-07-14.json
-__pycache__/market_data.cpython-312.pyc
-__pycache__/utils.cpython-312.pyc
-data_sourcing/__pycache__/market_data.cpython-312.pyc
-data_sourcing/__pycache__/utils.cpython-312.pyc
+__pycache__/
