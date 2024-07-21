@@ -1,23 +1,23 @@
 # import pandas as pd
 import json
-from data_sourcing import utils
+import utils
+import os
 
 import pandas as pd
 
 from pathlib import Path
-
 from coinbase.rest import RESTClient
 from datetime import datetime
 
 
-def get_candles(product_id: str, retry_count=4) -> dict:
+def get_candles(product_pair: str, retry_count=4) -> dict:
     """
     Args:
-        product_id: int
-            A Coinbase specific product identifier; see get_products().
+        product_pair: str
+            crypto_id-fiat_ccy pair; see get_products().
         retry_count: int
             Number of retries before we fail the request. Needed because of 
-            arbitrary API failures. 
+            arbitrary API failures on subsequent requests.
     """
 
     cdp_api_key = utils.load_coinbase_api_key()
@@ -31,12 +31,10 @@ def get_candles(product_id: str, retry_count=4) -> dict:
             client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
             start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
-            print(start_date.timestamp())
             end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
-            print(end_date.timestamp())
 
             ticks = client.get_candles(
-                    product_id=product_id, 
+                    product_id=product_pair, 
                     start=int(start_date.timestamp()), 
                     end=int(end_date.timestamp()), 
                     granularity='SIX_HOUR'
@@ -48,8 +46,37 @@ def get_candles(product_id: str, retry_count=4) -> dict:
             retry_count -= 1
 
 
-def get_archived_candles(product_id: str) -> dict:
-    pass
+def get_archived_candles(product_pair: str) -> pd.DataFrame:
+    archive_path = "data\\{}.parquet".format(product_pair)
+    print("[INFO] archive_path = {}".format(archive_path))
+
+    archive_file = Path(archive_path)
+    if (not archive_file.is_file()):
+        raise Exception("Archive File does NOT exist at {} ! Archive the data before attempting to load!"
+                        .format(archive_path))
+    
+    return pd.read_parquet(archive_path)
+
+
+def archive_candles(market_data: pd.DataFrame, product_pair: str) -> None:
+    """
+    Args:
+        market_data: DataFrame
+
+        product_pair: str
+            crypto_id-fiat_ccy pair; see get_products().
+    """
+     
+    archive_path = "data\\{}.parquet".format(product_pair)
+    print(os.path.dirname(os.path.abspath( __file__ )))
+    print("[INFO] archive_path = {}".format(archive_path))
+
+    archive_file = Path(archive_path)
+    if (archive_file.is_file()):
+        raise Exception("Archive File already exists at {} ! Manually remove to proceed!".format(archive_path))
+    
+    market_data.to_parquet(path=archive_path, compression='brotli', index=True)
+    
 
 def get_products(save_to_json=False) -> list[dict]:
     '''
@@ -96,7 +123,7 @@ def get_products(save_to_json=False) -> list[dict]:
     '''
     cdp_api_key = utils.load_coinbase_api_key()
     file_name = 'products_{}.json'.format(datetime.now().date())
-    dump_file = Path('data\\' + file_name)
+    dump_file = Path('..\\data\\' + file_name)
     
     client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
     products = client.get_products()
@@ -104,7 +131,7 @@ def get_products(save_to_json=False) -> list[dict]:
 
     if (save_to_json):
         file_name = 'products_{}.json'.format(datetime.now().date())
-        dump_file = Path('data\\' + file_name)
+        dump_file = Path('\\..\\data\\' + file_name)
         
         if (not dump_file.is_file()):
             with open(dump_file, 'w') as fp:
@@ -120,9 +147,9 @@ def get_archived_product_data(date: str) -> dict:
 
     file_name = 'products_{}.json'.format(date)
     
-    dump_file = Path('data\\' + file_name)
+    dump_file = Path('..\\data\\' + file_name)
     if (not dump_file.is_file()):
-        print("[INFO] invalid archive file: {}".format(file_name))
+        raise Exception("invalid archive file: {}".format(file_name))
 
     with open(dump_file, 'r') as fp:    
         data = json.load(fp)
@@ -154,3 +181,13 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
             merged_df = merged_df.merge(df, on='start') # no suffixes as we should never clash
 
     return merged_df
+
+
+if __name__ == '__main__':
+    # ticks = get_candles('BTC-USD')
+    # df = utils.convert_tick_data_to_dataframe(ticks=ticks, columns_to_drop=[])
+
+    # archive_candles(df, 'BTC-USD')
+    loaded = get_archived_candles('BTC-USD')
+    print(loaded)
+    # print(df.compare(loaded))
