@@ -21,13 +21,9 @@ def get_candles(product_pair: str, start_date: int, end_date: int, retry_count=6
             Number of retries before we fail the request. Needed because of 
             arbitrary API failures on subsequent requests.
     """
+    assert(start_date < end_date)
 
     cdp_api_key = utils.load_coinbase_api_key()
-    
-    # assert(start_date < end_date)
-    # start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    # end_date = datetime.strptime(end_date, "%Y-%m-%d")
-    # print("[INFO] Loading data from {} to {}".format(start_date.timestamp(), end_date.timestamp()))
 
     while (True):
         try:
@@ -40,20 +36,16 @@ def get_candles(product_pair: str, start_date: int, end_date: int, retry_count=6
 
             ticks = client.get_candles(
                     product_id=product_pair,
-                    # start=3703536000,
-                    # end=3709670400,
                     start=start_date,
                     end=end_date,
-                    # start=int(start_date.timestamp()), 
-                    # end=int(end_date.timestamp()), 
                     granularity='SIX_HOUR'
                     )
             
             return ticks
         except Exception as e: 
             retry_count -= 1
-            print(e)
-            print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
+            print("[WARN] Failed to get market data for {}! Retries left {}!\n{}}".format
+                  (product_pair, retry_count, e))
 
 
 def load_archived_market_data(product_pair: str, start_date: str, end_date: str) -> pd.DataFrame:
@@ -89,48 +81,8 @@ def archive_market_data(market_data: pd.DataFrame, product_pair: str, start_date
     
 
 def get_products(save_to_json=False) -> list[dict]:
-    '''
-    load_archived_data=True avoids an API call 
-
-    A single entry will look like this:
-    {
-        'product_id': 'SOL-USDC', 
-        'price': '146.55', 
-        'price_percentage_change_24h': '4.82832618025751', 
-        'volume_24h': '644595.03677692', 
-        'volume_percentage_change_24h': '12.31750359590964', 
-        'base_increment': '0.00000001', 
-        'quote_increment': '0.01', 
-        'quote_min_size': '1', 
-        'quote_max_size': '25000000', 
-        'base_min_size': '0.00000001', 
-        'base_max_size': '1274000', 
-        'base_name': 'Solana', 
-        'quote_name': 'USDC', 
-        'watched': False, 
-        'is_disabled': False, 
-        'new': False, 
-        'status': 'online', 
-        'cancel_only': False, 
-        'limit_only': False, 
-        'post_only': False, 
-        'trading_disabled': False, 
-        'auction_mode': False, 
-        'product_type': 'SPOT', 
-        'quote_currency_id': 'USDC', 
-        'base_currency_id': 'SOL', 
-        'fcm_trading_session_details': None, 
-        'mid_market_price': '', 
-        'alias': 'SOL-USD', 
-        'alias_to': [], 
-        'base_display_symbol': 'SOL', 
-        'quote_display_symbol': 'USD', 
-        'view_only': False, 
-        'price_increment': '0.01', 
-        'display_name': 'SOL-USDC', 
-        'product_venue': 'CBE', 
-        'approximate_quote_24h_volume': '94465402.64'}
-    '''
+    """
+    """
     cdp_api_key = utils.load_coinbase_api_key()
     file_name = 'products_{}.json'.format(datetime.now().date())
     dump_file = Path('..\\data\\' + file_name)
@@ -208,13 +160,16 @@ def get_historical_market_data(symbol: str, start_date: str, end_date: str, time
     time_delta = abs(end_date - start_date)
 
     request_number = int(time_delta.days * units_per_day[time_unit] / 300) + 1
-    bins = pd.date_range(start=start_date, end=end_date, periods=request_number)
+    if (request_number == 1):
+        bins = pd.date_range(start=start_date, end=end_date, freq='D')
+    else:
+        bins = pd.date_range(start=start_date, end=end_date, periods=request_number, inclusive="both")
 
     # we can get max 300 values in one REST call - so chunk it 
-    intervals = pd.cut(bins, bins=request_number)
-
+    intervals = pd.cut(bins, include_lowest=True, duplicates='drop', bins=request_number)
     concatenated = pd.DataFrame()
     for interval in intervals:
+        print("[INFO] Querying {} market data for interval [{} - {}]".format(symbol, interval.left, interval.right))
         market_data = get_candles(product_pair=symbol, 
                                   start_date=(interval.left - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s'), 
                                   end_date=(interval.right - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s')
