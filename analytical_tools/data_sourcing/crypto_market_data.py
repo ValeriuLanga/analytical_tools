@@ -42,11 +42,11 @@ def get_candles(product_pair: str, retry_count=4) -> dict:
             
             return ticks
         except: 
-            print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
             retry_count -= 1
+            print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
 
 
-def get_archived_market_data(product_pair: str) -> pd.DataFrame:
+def load_archived_market_data(product_pair: str) -> pd.DataFrame:
     archive_path = "data\\{}.parquet".format(product_pair)
     print("[INFO] archive_path = {}".format(archive_path))
 
@@ -160,7 +160,7 @@ def get_archived_product_data(date: str) -> dict:
     return data
 
 
-def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str], load_from_archive: bool = False) -> pd.DataFrame:
+def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.DataFrame:
     """
     TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
     
@@ -173,21 +173,11 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str], load_f
     for sym in symbols:
         mkt_data_pair = '{}-USD'.format(sym)
 
-        if (load_from_archive):
-            df = get_archived_market_data(mkt_data_pair)
-            
-            # keep consistent with 'live' mkt data
-            if (len(columns_to_drop) > 0):
-                # print("[INFO] Dropping {}".format(columns_to_drop))
-                df = df.drop(labels=columns_to_drop, axis=1)
-        else:
-            ticks = get_candles(mkt_data_pair)
-            df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
-            df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
-            df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
-            
-            # archive_market_data(df, mkt_data_pair)
-
+        ticks = get_candles(mkt_data_pair)
+        df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
+        df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
+        df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
+        
         if (merged_df.empty):
             merged_df = merged_df.merge(df, how='right', on='start')
         else:
