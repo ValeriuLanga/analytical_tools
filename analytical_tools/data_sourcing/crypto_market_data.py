@@ -1,42 +1,40 @@
-# import pandas as pd
 import json
-from data_sourcing import utils
-
+import os
 import pandas as pd
 
-from pathlib import Path
+from data_sourcing import utils
+import sys
 
+from pathlib import Path
 from coinbase.rest import RESTClient
 from datetime import datetime
 
 
-def get_candles(product_id: str, retry_count=4) -> dict:
+def get_candles(product_pair: str, retry_count=4) -> dict:
     """
     Args:
-        product_id: int
-            A Coinbase specific product identifier; see get_products().
+        product_pair: str
+            crypto_id-fiat_ccy pair; see get_products().
         retry_count: int
             Number of retries before we fail the request. Needed because of 
-            arbitrary API failures. 
+            arbitrary API failures on subsequent requests.
     """
 
-    cdp_api_key = utils.load_api_key()
+    cdp_api_key = utils.load_coinbase_api_key()
     
     while (True):
         try:
             if (retry_count <= 0):
                 # return {}   # TODO: decide on approach for market_data methods - throw, empty, err code
-                raise Exception("Failed to load market data candles!")
+                raise Exception("Failed to load market data candles! Exceeded retry count!")
             
             client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
             start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
-            print(start_date.timestamp())
             end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
-            print(end_date.timestamp())
 
             ticks = client.get_candles(
-                    product_id=product_id, 
+                    product_id=product_pair, 
                     start=int(start_date.timestamp()), 
                     end=int(end_date.timestamp()), 
                     granularity='SIX_HOUR'
@@ -44,12 +42,41 @@ def get_candles(product_id: str, retry_count=4) -> dict:
             
             return ticks
         except: 
-            print("[WARN] Failed to get market data!")
             retry_count -= 1
+            print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
 
 
-def get_archived_candles(product_id: str) -> dict:
-    pass
+def load_archived_market_data(product_pair: str) -> pd.DataFrame:
+    archive_path = "data\\{}.parquet".format(product_pair)
+    print("[INFO] archive_path = {}".format(archive_path))
+
+    archive_file = Path(archive_path)
+    if (not archive_file.is_file()):
+        raise Exception("Archive File does NOT exist at {} ! Archive the data before attempting to load!"
+                        .format(archive_path))
+    
+    return pd.read_parquet(archive_path)
+
+
+def archive_market_data(market_data: pd.DataFrame, product_pair: str) -> None:
+    """
+    Args:
+        market_data: DataFrame
+
+        product_pair: str
+            crypto_id-fiat_ccy pair; see get_products().
+    """
+     
+    archive_path = "data\\{}.parquet".format(product_pair)
+    print(os.path.dirname(os.path.abspath( __file__ )))
+    print("[INFO] archive_path = {}".format(archive_path))
+
+    archive_file = Path(archive_path)
+    if (archive_file.is_file()):
+        raise Exception("Archive File already exists at {} ! Manually remove to proceed!".format(archive_path))
+    
+    market_data.to_parquet(path=archive_path, compression='brotli', index=True)
+    
 
 def get_products(save_to_json=False) -> list[dict]:
     '''
@@ -94,17 +121,18 @@ def get_products(save_to_json=False) -> list[dict]:
         'product_venue': 'CBE', 
         'approximate_quote_24h_volume': '94465402.64'}
     '''
-    cdp_api_key = utils.load_api_key()
+    cdp_api_key = utils.load_coinbase_api_key()
     file_name = 'products_{}.json'.format(datetime.now().date())
-    dump_file = Path('data\\' + file_name)
+    dump_file = Path('..\\data\\' + file_name)
     
     client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
     products = client.get_products()
     print("[INFO] Sourced {} products".format(products['num_products']))
 
     if (save_to_json):
+        # TODO: move to parquet
         file_name = 'products_{}.json'.format(datetime.now().date())
-        dump_file = Path('data\\' + file_name)
+        dump_file = Path('\\..\\data\\' + file_name)
         
         if (not dump_file.is_file()):
             with open(dump_file, 'w') as fp:
@@ -116,13 +144,14 @@ def get_products(save_to_json=False) -> list[dict]:
 def get_archived_product_data(date: str) -> dict:
     '''
     date must be in YYYY-MM-DD format
+    TODO: move to parquet
     '''
 
     file_name = 'products_{}.json'.format(date)
     
-    dump_file = Path('data\\' + file_name)
+    dump_file = Path('..\\data\\' + file_name)
     if (not dump_file.is_file()):
-        print("[INFO] invalid archive file: {}".format(file_name))
+        raise Exception("invalid archive file: {}".format(file_name))
 
     with open(dump_file, 'r') as fp:    
         data = json.load(fp)
@@ -142,12 +171,13 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
     merged_df = pd.DataFrame({'start' : []})
 
     for sym in symbols:
+        mkt_data_pair = '{}-USD'.format(sym)
 
-        ticks = get_candles('{}-USD'.format(sym))
+        ticks = get_candles(mkt_data_pair)
         df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
-        df = df.add_suffix('_' + sym)
-        df = df.rename({'start_' + sym : 'start'}, axis=1) # cleaner than a manual rename of all cols
-
+        df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
+        df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
+        
         if (merged_df.empty):
             merged_df = merged_df.merge(df, how='right', on='start')
         else:
