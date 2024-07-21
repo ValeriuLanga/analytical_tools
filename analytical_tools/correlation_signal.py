@@ -5,8 +5,9 @@ import plotly.express as px
 
 from dash import Dash, html, dcc, callback, Output, Input
 
-import data_sourcing.crypto_market_data as crypto_market_data
 import sys
+
+from data_sourcing import crypto_market_data, utils
 
 @callback(
         Output('graph-content', 'figure'),
@@ -33,7 +34,12 @@ def add_ln_returns_to_df(df: pd.DataFrame, symbol: str):
     df[ln_returns_col_name] = np.log(df[price_col_name] / df[price_col_name].shift(1))
 
 
-unified_df = crypto_market_data.get_ticks_as_merged_df(set(['BTC', 'SOL']), columns_to_drop=[])
+unified_df = crypto_market_data.get_ticks_as_merged_df(
+    set(['BTC', 'SOL']), 
+    start_date=utils.convert_date_to_unix_time('2024-05-13'),
+    end_date=utils.convert_date_to_unix_time('2024-07-13'),
+    columns_to_drop=[]
+    )
 add_ln_returns_to_df(unified_df, 'BTC')
 add_ln_returns_to_df(unified_df, 'SOL')
 

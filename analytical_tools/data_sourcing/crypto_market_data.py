@@ -10,9 +10,11 @@ from coinbase.rest import RESTClient
 from datetime import datetime
 
 
-def get_candles(product_pair: str, start_date, end_date, retry_count=6) -> dict:
+def get_candles(product_pair: str, start_date: int, end_date: int, retry_count=6) -> dict:
     """
     Args:
+        start_date: in UNIX time
+        end_date: in UNIX time
         product_pair: str
             crypto_id-fiat_ccy pair; see get_products().
         retry_count: int
@@ -179,11 +181,11 @@ def get_ticks_as_merged_df(symbols: set[str], start_date: str, end_date: str, co
     merged_df = pd.DataFrame({'start' : []})
 
     for sym in symbols:
+        # TODO: change prod pair to tuple; abstract away some of the details
         mkt_data_pair = '{}-USD'.format(sym)
 
-        # TODO: change prod pair to tuple; abstract away some of the details
-        ticks = get_candles(mkt_data_pair, start_date, end_date)
-        df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
+        df = get_historical_market_data(mkt_data_pair, start_date, end_date, 'SIX_HOUR')
+        df = utils.normalize_crypto_market_data(df, columns_to_drop)
         df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
         df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
         
@@ -195,22 +197,21 @@ def get_ticks_as_merged_df(symbols: set[str], start_date: str, end_date: str, co
     return merged_df
 
 
-def get_historical_ticks_as_df(symbol: str, start_date: str, end_date: str, time_unit: str) -> pd.DataFrame:
+def get_historical_market_data(symbol: str, start_date: str, end_date: str, time_unit: str) -> pd.DataFrame:
     """
     """
     # TODO: add all possible mappings; see coinbase api for values
-    units_per_day = {'SIX_HOURS' : 4}
+    units_per_day = {'SIX_HOUR' : 4}
 
     start_date = datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    time_delta = abs(end_date - start_date)
 
-    var = abs(end_date - start_date)
-    request_number = int(var.days * units_per_day[time_unit] / 300) + 1
+    request_number = int(time_delta.days * units_per_day[time_unit] / 300) + 1
     bins = pd.date_range(start=start_date, end=end_date, periods=request_number)
 
     # we can get max 300 values in one REST call - so chunk it 
     intervals = pd.cut(bins, bins=request_number)
-    print(intervals)
 
     concatenated = pd.DataFrame()
     for interval in intervals:
@@ -218,9 +219,10 @@ def get_historical_ticks_as_df(symbol: str, start_date: str, end_date: str, time
                                   start_date=(interval.left - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s'), 
                                   end_date=(interval.right - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s')
                                   )
-        # print(market_data)
-        df = utils.convert_tick_data_to_dataframe(market_data, [])
+        
+        df = utils.convert_tick_data_to_dataframe(market_data, [], False)
         concatenated = pd.concat([concatenated, df])
-        # print(df)
 
-    archive_market_data(concatenated, symbol, start_date=start_date.date(), end_date=end_date.date())
+    # archive_market_data(concatenated, symbol, start_date=start_date.date(), end_date=end_date.date())
+    print(concatenated)
+    return concatenated
