@@ -25,9 +25,13 @@ def update_graph(value: str):
 
 
 symbols = set(['LTC', 'SOL', 'AVAX'])
-merged_df = crypto_market_data.get_ticks_as_merged_df(symbols, [])
+merged_df = crypto_market_data.get_ticks_as_merged_df(
+       symbols=symbols, 
+       start_date='2024-05-13', 
+       end_date='2024-07-13', 
+       columns_to_drop=[]
+       )
 # print(merged_df.head())
-
 # run the app
 app = Dash(__name__)
 app.layout = html.Div([

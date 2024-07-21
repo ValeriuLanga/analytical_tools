@@ -10,7 +10,7 @@ from coinbase.rest import RESTClient
 from datetime import datetime
 
 
-def get_candles(product_pair: str, retry_count=4) -> dict:
+def get_candles(product_pair: str, start_date, end_date, retry_count=6) -> dict:
     """
     Args:
         product_pair: str
@@ -22,32 +22,40 @@ def get_candles(product_pair: str, retry_count=4) -> dict:
 
     cdp_api_key = utils.load_coinbase_api_key()
     
+    # assert(start_date < end_date)
+    # start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    # end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    # print("[INFO] Loading data from {} to {}".format(start_date.timestamp(), end_date.timestamp()))
+
     while (True):
         try:
             if (retry_count <= 0):
-                # return {}   # TODO: decide on approach for market_data methods - throw, empty, err code
-                raise Exception("Failed to load market data candles! Exceeded retry count!")
+                print("[EROR] Failed to get market data!")
+                return {}   # TODO: decide on approach for market_data methods - throw, empty, err code
+                # raise Exception("Failed to load market data candles! Exceeded retry count!")
             
             client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
-            start_date = datetime.strptime('2024-05-13', "%Y-%m-%d")
-            end_date = datetime.strptime('2024-07-13', "%Y-%m-%d")
-
             ticks = client.get_candles(
-                    product_id=product_pair, 
-                    start=int(start_date.timestamp()), 
-                    end=int(end_date.timestamp()), 
+                    product_id=product_pair,
+                    # start=3703536000,
+                    # end=3709670400,
+                    start=start_date,
+                    end=end_date,
+                    # start=int(start_date.timestamp()), 
+                    # end=int(end_date.timestamp()), 
                     granularity='SIX_HOUR'
                     )
             
             return ticks
-        except: 
+        except Exception as e: 
             retry_count -= 1
+            print(e)
             print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
 
 
-def load_archived_market_data(product_pair: str) -> pd.DataFrame:
-    archive_path = "data\\{}.parquet".format(product_pair)
+def load_archived_market_data(product_pair: str, start_date: str, end_date: str) -> pd.DataFrame:
+    archive_path = "data\\{}_{}_to_{}.parquet".format(product_pair, start_date, end_date)
     print("[INFO] archive_path = {}".format(archive_path))
 
     archive_file = Path(archive_path)
@@ -58,7 +66,7 @@ def load_archived_market_data(product_pair: str) -> pd.DataFrame:
     return pd.read_parquet(archive_path)
 
 
-def archive_market_data(market_data: pd.DataFrame, product_pair: str) -> None:
+def archive_market_data(market_data: pd.DataFrame, product_pair: str, start_date: str, end_date: str) -> None:
     """
     Args:
         market_data: DataFrame
@@ -67,7 +75,7 @@ def archive_market_data(market_data: pd.DataFrame, product_pair: str) -> None:
             crypto_id-fiat_ccy pair; see get_products().
     """
      
-    archive_path = "data\\{}.parquet".format(product_pair)
+    archive_path = "data\\{}_{}_to_{}.parquet".format(product_pair, start_date, end_date)
     print(os.path.dirname(os.path.abspath( __file__ )))
     print("[INFO] archive_path = {}".format(archive_path))
 
@@ -160,7 +168,7 @@ def get_archived_product_data(date: str) -> dict:
     return data
 
 
-def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.DataFrame:
+def get_ticks_as_merged_df(symbols: set[str], start_date: str, end_date: str, columns_to_drop: list[str]) -> pd.DataFrame:
     """
     TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
     
@@ -173,7 +181,8 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
     for sym in symbols:
         mkt_data_pair = '{}-USD'.format(sym)
 
-        ticks = get_candles(mkt_data_pair)
+        # TODO: change prod pair to tuple; abstract away some of the details
+        ticks = get_candles(mkt_data_pair, start_date, end_date)
         df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
         df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
         df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
@@ -184,3 +193,34 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
             merged_df = merged_df.merge(df, on='start') # no suffixes as we should never clash
 
     return merged_df
+
+
+def get_historical_ticks_as_df(symbol: str, start_date: str, end_date: str, time_unit: str) -> pd.DataFrame:
+    """
+    """
+    # TODO: add all possible mappings; see coinbase api for values
+    units_per_day = {'SIX_HOURS' : 4}
+
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+    var = abs(end_date - start_date)
+    request_number = int(var.days * units_per_day[time_unit] / 300) + 1
+    bins = pd.date_range(start=start_date, end=end_date, periods=request_number)
+
+    # we can get max 300 values in one REST call - so chunk it 
+    intervals = pd.cut(bins, bins=request_number)
+    print(intervals)
+
+    concatenated = pd.DataFrame()
+    for interval in intervals:
+        market_data = get_candles(product_pair=symbol, 
+                                  start_date=(interval.left - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s'), 
+                                  end_date=(interval.right - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s')
+                                  )
+        # print(market_data)
+        df = utils.convert_tick_data_to_dataframe(market_data, [])
+        concatenated = pd.concat([concatenated, df])
+        # print(df)
+
+    archive_market_data(concatenated, symbol, start_date=start_date.date(), end_date=end_date.date())
