@@ -160,7 +160,7 @@ def get_archived_product_data(date: str) -> dict:
     return data
 
 
-def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str], load_from_archive: bool = False) -> pd.DataFrame:
+def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.DataFrame:
     """
     TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
     
