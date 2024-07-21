@@ -1,9 +1,9 @@
-# import pandas as pd
 import json
-import utils
 import os
-
 import pandas as pd
+
+from data_sourcing import utils
+import sys
 
 from pathlib import Path
 from coinbase.rest import RESTClient
@@ -26,7 +26,7 @@ def get_candles(product_pair: str, retry_count=4) -> dict:
         try:
             if (retry_count <= 0):
                 # return {}   # TODO: decide on approach for market_data methods - throw, empty, err code
-                raise Exception("Failed to load market data candles!")
+                raise Exception("Failed to load market data candles! Exceeded retry count!")
             
             client = RESTClient(api_key=cdp_api_key['name'], api_secret=cdp_api_key['privateKey'])
 
@@ -42,11 +42,11 @@ def get_candles(product_pair: str, retry_count=4) -> dict:
             
             return ticks
         except: 
-            print("[WARN] Failed to get market data!")
+            print("[WARN] Failed to get market data for {}! Retries left {}".format(product_pair, retry_count))
             retry_count -= 1
 
 
-def get_archived_candles(product_pair: str) -> pd.DataFrame:
+def get_archived_market_data(product_pair: str) -> pd.DataFrame:
     archive_path = "data\\{}.parquet".format(product_pair)
     print("[INFO] archive_path = {}".format(archive_path))
 
@@ -58,7 +58,7 @@ def get_archived_candles(product_pair: str) -> pd.DataFrame:
     return pd.read_parquet(archive_path)
 
 
-def archive_candles(market_data: pd.DataFrame, product_pair: str) -> None:
+def archive_market_data(market_data: pd.DataFrame, product_pair: str) -> None:
     """
     Args:
         market_data: DataFrame
@@ -130,6 +130,7 @@ def get_products(save_to_json=False) -> list[dict]:
     print("[INFO] Sourced {} products".format(products['num_products']))
 
     if (save_to_json):
+        # TODO: move to parquet
         file_name = 'products_{}.json'.format(datetime.now().date())
         dump_file = Path('\\..\\data\\' + file_name)
         
@@ -143,6 +144,7 @@ def get_products(save_to_json=False) -> list[dict]:
 def get_archived_product_data(date: str) -> dict:
     '''
     date must be in YYYY-MM-DD format
+    TODO: move to parquet
     '''
 
     file_name = 'products_{}.json'.format(date)
@@ -158,7 +160,7 @@ def get_archived_product_data(date: str) -> dict:
     return data
 
 
-def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.DataFrame:
+def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str], load_from_archive: bool = False) -> pd.DataFrame:
     """
     TODO: decide if methods from mkt_data return standard lib structures or ok to return DFs
     
@@ -169,11 +171,22 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
     merged_df = pd.DataFrame({'start' : []})
 
     for sym in symbols:
+        mkt_data_pair = '{}-USD'.format(sym)
 
-        ticks = get_candles('{}-USD'.format(sym))
-        df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
-        df = df.add_suffix('_' + sym)
-        df = df.rename({'start_' + sym : 'start'}, axis=1) # cleaner than a manual rename of all cols
+        if (load_from_archive):
+            df = get_archived_market_data(mkt_data_pair)
+            
+            # keep consistent with 'live' mkt data
+            if (len(columns_to_drop) > 0):
+                # print("[INFO] Dropping {}".format(columns_to_drop))
+                df = df.drop(labels=columns_to_drop, axis=1)
+        else:
+            ticks = get_candles(mkt_data_pair)
+            df = utils.convert_tick_data_to_dataframe(ticks, columns_to_drop)
+            df = df.add_suffix('_' + sym)   # this will also rename the 'start' column which is the time
+            df = df.rename({'start_' + sym : 'start'}, axis=1) # single time for all MD ticks - rename back
+            
+            # archive_market_data(df, mkt_data_pair)
 
         if (merged_df.empty):
             merged_df = merged_df.merge(df, how='right', on='start')
@@ -181,13 +194,3 @@ def get_ticks_as_merged_df(symbols: set[str], columns_to_drop: list[str]) -> pd.
             merged_df = merged_df.merge(df, on='start') # no suffixes as we should never clash
 
     return merged_df
-
-
-if __name__ == '__main__':
-    # ticks = get_candles('BTC-USD')
-    # df = utils.convert_tick_data_to_dataframe(ticks=ticks, columns_to_drop=[])
-
-    # archive_candles(df, 'BTC-USD')
-    loaded = get_archived_candles('BTC-USD')
-    print(loaded)
-    # print(df.compare(loaded))

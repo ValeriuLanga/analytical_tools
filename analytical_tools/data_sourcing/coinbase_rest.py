@@ -7,7 +7,7 @@ import plotly.express as px
 
 from dash import Dash, html, dcc, callback, Output, Input
 
-import data_sourcing.market_data as market_data
+import data_sourcing.crypto_market_data as crypto_market_data
 import data_sourcing.utils as utils
 
 @callback(
@@ -23,11 +23,11 @@ def update_graph(value: str):
 
 if __name__ == '__main__':
     # BTC
-    ticks_btc = market_data.get_candles('AVAX-USD')
+    ticks_btc = crypto_market_data.get_candles('AVAX-USD')
     btc_df = utils.convert_tick_data_to_dataframe(ticks=ticks_btc)
 
     # SOL
-    ticks_sol = market_data.get_candles('SOL-USD')
+    ticks_sol = crypto_market_data.get_candles('SOL-USD')
     sol_df = utils.convert_tick_data_to_dataframe(ticks=ticks_sol)
 
     unified_df = btc_df.merge(sol_df, on='start', suffixes=['_btc', '_sol'])
