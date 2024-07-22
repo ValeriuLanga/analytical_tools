@@ -19,8 +19,8 @@ def add_ln_returns_to_df(df: pd.DataFrame, symbol: str):
 symbols = set(['BTC', 'SOL', 'AVAX', 'AXS', 'ARKM', 'ILV'])
 unified_df = crypto_market_data.get_ticks_as_merged_df(
     symbols=symbols, 
-    start_date=utils.convert_date_to_unix_time('2024-05-13'),
-    end_date=utils.convert_date_to_unix_time('2024-07-13'),
+    start_date='2024-05-13',
+    end_date='2024-07-13',
     columns_to_drop=['low', 'high', 'open', 'volume']
     )
 
