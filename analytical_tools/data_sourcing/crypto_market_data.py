@@ -1,6 +1,7 @@
 import json
 import os
 import pandas as pd
+import numpy as np
 
 from data_sourcing import utils
 import sys
@@ -21,7 +22,6 @@ def get_candles(product_pair: str, start_date: int, end_date: int, retry_count=6
             Number of retries before we fail the request. Needed because of 
             arbitrary API failures on subsequent requests.
     """
-    assert(start_date < end_date)
 
     cdp_api_key = utils.load_coinbase_api_key()
 
@@ -40,11 +40,10 @@ def get_candles(product_pair: str, start_date: int, end_date: int, retry_count=6
                     end=end_date,
                     granularity='SIX_HOUR'
                     )
-            
             return ticks
         except Exception as e: 
             retry_count -= 1
-            print("[WARN] Failed to get market data for {}! Retries left {}!\n{}}".format
+            print("[WARN] Failed to get market data for {}! Retries left {}!\n{}".format
                   (product_pair, retry_count, e))
 
 
@@ -157,27 +156,25 @@ def get_historical_market_data(symbol: str, start_date: str, end_date: str, time
 
     start_date = datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.strptime(end_date, "%Y-%m-%d")
-    time_delta = abs(end_date - start_date)
+    days_between = abs(end_date - start_date)
 
-    request_number = int(time_delta.days * units_per_day[time_unit] / 300) + 1
-    if (request_number == 1):
-        bins = pd.date_range(start=start_date, end=end_date, freq='D')
-    else:
-        bins = pd.date_range(start=start_date, end=end_date, periods=request_number, inclusive="both")
+    request_number = int(days_between.days * units_per_day[time_unit] / 300) + 1
+    dates = pd.date_range(start=start_date, end=end_date, freq='D')
 
     # we can get max 300 values in one REST call - so chunk it 
-    intervals = pd.cut(bins, include_lowest=True, duplicates='drop', bins=request_number)
+    intervals = np.array_split(dates, request_number)
+
     concatenated = pd.DataFrame()
     for interval in intervals:
-        print("[INFO] Querying {} market data for interval [{} - {}]".format(symbol, interval.left, interval.right))
+        print("[INFO] Querying {} market data for interval [{} - {}]".format(symbol, interval[0], interval[-1]))
         market_data = get_candles(product_pair=symbol, 
-                                  start_date=(interval.left - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s'), 
-                                  end_date=(interval.right - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s')
+                                  start_date=(interval[0] - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s'), 
+                                  end_date=(interval[-1] - pd.Timestamp('1970-01-01')) // pd.Timedelta('1s')
                                   )
         
         df = utils.convert_tick_data_to_dataframe(market_data, [], False)
-        concatenated = pd.concat([concatenated, df])
+        concatenated = pd.concat([df, concatenated])
 
     # archive_market_data(concatenated, symbol, start_date=start_date.date(), end_date=end_date.date())
-    print(concatenated)
+    # print(concatenated)
     return concatenated
