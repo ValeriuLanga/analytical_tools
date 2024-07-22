@@ -5,7 +5,7 @@ import plotly.express as px
 
 from dash import Dash, html, dcc, callback, Output, Input
 
-import data_sourcing.crypto_market_data as crypto_market_data
+from data_sourcing import crypto_market_data, utils
 
 @callback(
         Output('graph-content', 'figure'),
@@ -25,8 +25,12 @@ def update_graph(value: str):
 
 
 symbols = set(['LTC', 'SOL', 'AVAX'])
-merged_df = crypto_market_data.get_ticks_as_merged_df(symbols, [])
-# print(merged_df.head())
+merged_df = crypto_market_data.get_ticks_as_merged_df(
+       symbols=symbols, 
+       start_date='2023-07-13',
+       end_date='2024-07-13',
+       columns_to_drop=[]
+       )
 
 # run the app
 app = Dash(__name__)

@@ -3,8 +3,7 @@ import numpy as np
 
 import plotly.express as px
 
-import data_sourcing.crypto_market_data as crypto_market_data
-
+from data_sourcing import crypto_market_data, utils
 
 def add_ln_returns_to_df(df: pd.DataFrame, symbol: str):
     """
@@ -18,7 +17,12 @@ def add_ln_returns_to_df(df: pd.DataFrame, symbol: str):
 
 #######
 symbols = set(['BTC', 'SOL', 'AVAX', 'AXS', 'ARKM', 'ILV'])
-unified_df = crypto_market_data.get_ticks_as_merged_df(symbols=symbols, columns_to_drop=['low', 'high', 'open', 'volume'])
+unified_df = crypto_market_data.get_ticks_as_merged_df(
+    symbols=symbols, 
+    start_date='2024-05-13',
+    end_date='2024-07-13',
+    columns_to_drop=['low', 'high', 'open', 'volume']
+    )
 
 for sym in symbols:
     add_ln_returns_to_df(unified_df, sym)
