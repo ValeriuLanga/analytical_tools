@@ -8,6 +8,7 @@ from sklearn import linear_model
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
 
 from data_sourcing import crypto_market_data, utils
 
@@ -149,12 +150,49 @@ if __name__ == '__main__':
     strat_gauss_nb     2.525373
     strat_svm         18.135043     <- overfitting + ~bull run
     """
+    # print(np.log(173.21 / 25.68))
+    # print(np.exp(1.9087922523604284)) = 6.74493769470405 which is ~674% return in real-value
+    # 25.68 * 6.74 ~= 173.21
+    # 1813% is the potential svm return (overfitting massively as we'll see below)
 
     # sol_data[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
     # plt.show()
 
     ##############################################################################
     # now let's test this using a randomized train-test split
+
+    # train, test = train_test_split(sol_data, test_size=0.5, shuffle=True, random_state=100)
+    # train = train.copy().sort_index()
+    # test = test.copy().sort_index()
+
+    # fit_models(train, bin_cols, models)     # we do this on one random half of the data
+    
+    # derive_positions(test, bin_cols, models)  # and the rest on the other half
+    # strat_returns_cols = evaluate_strats(test, models)
+
+    # print(test[strat_returns_cols].sum().apply(np.exp))
+    # """
+    # returns           2.222274
+    # strat_log_reg     1.122149
+    # strat_gauss_nb    1.122149
+    # strat_svm         1.755403      <- pretty grim; can't even beat benchmark
+    # """
+
+    # test[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
+    # plt.show()
+
+
+
+    ##############################################################################
+    # let's try a digitized instead of binary
+
+    mu = sol_data['returns'].mean()
+    v = sol_data['returns'].std()
+
+    bins = [mu -v, mu, mu + v]
+    bin_cols = create_bins(sol_data, lag_cols, bins)
+
+
     train, test = train_test_split(sol_data, test_size=0.5, shuffle=True, random_state=100)
     train = train.copy().sort_index()
     test = test.copy().sort_index()
@@ -164,14 +202,40 @@ if __name__ == '__main__':
     derive_positions(test, bin_cols, models)  # and the rest on the other half
     strat_returns_cols = evaluate_strats(test, models)
 
-    print(test[strat_returns_cols].sum().apply(np.exp))
+    # print(test[strat_returns_cols].sum().apply(np.exp))
     """
     returns           2.222274
-    strat_log_reg     1.122149
-    strat_gauss_nb    1.122149
-    strat_svm         1.755403      <- pretty grim; can't even beat benchmark
+    strat_log_reg     1.306912
+    strat_gauss_nb    1.321123
+    strat_svm         3.773906  <- we're onto something here; this beats the bechmark
     """
+    
+    # test[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
+    # plt.show()
 
-    test[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
+
+    ##############################################################################
+    # and finally let's try a simple DNN algo
+
+    model = MLPClassifier(solver='sgd', 
+                      alpha=1e-5,
+                      hidden_layer_sizes=3 * [500],
+                      random_state=1,
+                      max_iter=1000)
+
+    train, test = train_test_split(sol_data, test_size=0.5, random_state=100)
+    train = train.copy().sort_index()
+    test = test.copy().sort_index()
+
+    model.fit(train[bin_cols], train['direction'])
+
+    test['pos_dnn_sk'] = model.predict(test[bin_cols])
+    test['strat_dnn_sk'] = test['pos_dnn_sk'] * test['returns']
+
+    print(test[['returns', 'strat_dnn_sk']].sum().apply(np.exp))
+    """
+    returns         1.022384
+    strat_dnn_sk    1.237390    <- more realistic on randomized train-test split
+    """
+    test[['returns', 'strat_dnn_sk']].cumsum().apply(np.exp).plot(figsize=(10,6))
     plt.show()
-
