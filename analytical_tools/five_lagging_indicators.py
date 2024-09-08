@@ -7,6 +7,7 @@ from pylab import mpl, plt
 from sklearn import linear_model
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
 
 from data_sourcing import crypto_market_data, utils
 
@@ -140,8 +141,8 @@ if __name__ == '__main__':
     derive_positions(sol_data, bin_cols, models)
     strat_returns_cols = evaluate_strats(sol_data, models)
 
-    print(strat_returns_cols)
-    print(sol_data[strat_returns_cols].sum().apply(np.exp))
+    # print(strat_returns_cols)
+    # print(sol_data[strat_returns_cols].sum().apply(np.exp))
     """
     returns            6.744938     <- still good benchmark rets
     strat_log_reg      2.525373
@@ -149,7 +150,28 @@ if __name__ == '__main__':
     strat_svm         18.135043     <- overfitting + ~bull run
     """
 
-    sol_data[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
+    # sol_data[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
+    # plt.show()
+
+    ##############################################################################
+    # now let's test this using a randomized train-test split
+    train, test = train_test_split(sol_data, test_size=0.5, shuffle=True, random_state=100)
+    train = train.copy().sort_index()
+    test = test.copy().sort_index()
+
+    fit_models(train, bin_cols, models)     # we do this on one random half of the data
+    
+    derive_positions(test, bin_cols, models)  # and the rest on the other half
+    strat_returns_cols = evaluate_strats(test, models)
+
+    print(test[strat_returns_cols].sum().apply(np.exp))
+    """
+    returns           2.222274
+    strat_log_reg     1.122149
+    strat_gauss_nb    1.122149
+    strat_svm         1.755403      <- pretty grim; can't even beat benchmark
+    """
+
+    test[strat_returns_cols].cumsum().apply(np.exp).plot(figsize=(10, 6))
     plt.show()
 
-    
