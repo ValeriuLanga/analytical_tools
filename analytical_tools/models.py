@@ -4,8 +4,9 @@ from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 
-from model_runner import ModelRunner
 from data_sourcing import crypto_market_data, utils
+from models.model_runner import ModelRunner
+import sys
 
 if __name__ == '__main__':
 
