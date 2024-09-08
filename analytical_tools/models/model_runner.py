@@ -4,7 +4,7 @@ import numpy as np
 from data_sourcing import crypto_market_data, utils
 from models.base_model_runner import ModelRunnerBase
 
-class ModelRunner(ModelRunnerBase):
+class BinaryFeaturesModelRunner(ModelRunnerBase):
 
     def __init__(self, data: pd.DataFrame, models: dict): 
         super().__init__(data)
@@ -46,6 +46,8 @@ class ModelRunner(ModelRunnerBase):
         
         All models suppliec in 'models' are used
         """
+
+        # todo: find a way to prallelize this? 
         for model_name in models.keys():
             models[model_name].fit(self._data[bin_columns], self._data['direction'])
 
@@ -72,7 +74,53 @@ class ModelRunner(ModelRunnerBase):
 
         for model in models.keys():
             col = 'strat_' + model
+
+            # so we take the position (long/short) and gain T returns, where T is the time interval
             self._data[col] = self._data['pos_' + model] * self._data['returns']
+
+            performance_cols.append(col)
+
+        performance_cols.insert(0, 'returns')
+
+        return performance_cols
+    
+
+class DigitizedFeaturesModelRunne(BinaryFeaturesModelRunner):
+
+    def __init__(self, data: pd.DataFrame, models: dict):
+        super().__init__(data, models)
+    
+    def _create_bins(self, laggings_cols: list[str], bins=[0]) -> list[str]:
+        mu = self._data['returns'].mean()
+        v = self._data['returns'].std()
+        
+        bins = [mu -v, mu, mu + v]
+
+        return super()._create_bins(laggings_cols, bins)
+    
+
+class LongOnlyDigitizedFeaturesModelRunne(DigitizedFeaturesModelRunne):
+
+    def __init__(self, data: pd.DataFrame, models: dict):
+        super().__init__(data, models)
+
+    def _evaluate_strats(self, models: dict) -> list[str]:
+        """Evaluates the returns that each of the models made
+        This will only 'invest' if we have a long prediction, i.e. no shorts taken. 
+        
+        Returns
+        -------
+        list[str]
+            a list with all the column names that hold the models' performance
+        """
+
+        performance_cols = []
+
+        for model in models.keys():
+            col = 'strat_' + model
+
+            # so we take the LONG position only and gain T returns, where T is the time interval
+            self._data[col] = self._data['pos_' + model].where(self._data['pos_' + model] > 0) * self._data['returns']
 
             performance_cols.append(col)
 

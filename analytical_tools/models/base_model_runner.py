@@ -14,7 +14,15 @@ class ModelRunnerBase(ABC):
         self._data['returns'] = np.log(self._data['close'] / self._data['close'].shift(1))
         self._data['direction'] = np.sign(self._data['returns'])
 
+    def get_data(self) -> pd.DataFrame:
+        return self._data.copy()
 
+    def set_data(self, data: pd.DataFrame) -> None:
+        """
+        WARNING: you will override the data potentially causing issues
+        """
+        self._data = data.copy()
+        
     def _create_lags(self, lags: int) -> list[str]:
         """Creates lagging returns columns
 
