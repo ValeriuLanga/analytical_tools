@@ -28,4 +28,5 @@ if __name__ == '__main__':
 
     # instance for SOL
     model_runner = ModelRunner(sol_data, models)
-    model_runner.run_models()
+    returns = model_runner.run_models()
+    print(returns)
